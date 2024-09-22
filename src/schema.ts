@@ -1,10 +1,11 @@
-import {text, integer, index, sqliteTable, blob} from "drizzle-orm/sqlite-core";
+import {text, integer, index, sqliteTable, blob, unique} from "drizzle-orm/sqlite-core";
 import {sql} from "drizzle-orm";
 
 export const posts = sqliteTable('posts', {
     id: integer('id').primaryKey(),
     created_at: integer('created_at', {mode: "timestamp"}).defaultNow().notNull(),
     user_id: text('user_id').notNull(),
+    messageUrl: text('message_url').notNull(),
     message: text('message').notNull(),
 }, (table) => {
     return {
@@ -18,7 +19,7 @@ export const attachments = sqliteTable('attachments', {
     postId: integer('post_id').notNull().references(() => posts.id)
 }, (table) => {
     return {
-        hashIdx: index('hash_idx').on(table.pHash)
+        hashIdx: index('hash_idx').on(table.pHash),
     }
 })
 
@@ -35,6 +36,6 @@ export const link_blacklist = sqliteTable('link_blacklist', {
     url: text('url').notNull()
 }, (table) => {
     return {
-        urlIdx: index('link_blacklist_url_idx').on(table.url)
+        urlIdx: unique('link_blacklist_url_idx').on(table.url)
     }
 })

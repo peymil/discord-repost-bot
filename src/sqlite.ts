@@ -3,8 +3,10 @@ import Database from 'better-sqlite3';
 import * as fs from "node:fs";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 
-
-fs.writeFileSync('db/sqlite.db', '');
+if (!fs.existsSync('db/sqlite.db')) {
+    fs.mkdirSync('db', {recursive: true});
+    fs.writeFileSync('db/sqlite.db', '');
+}
 const sqlite = new Database('db/sqlite.db');
 
 const db = drizzle(sqlite);

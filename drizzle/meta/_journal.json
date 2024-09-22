@@ -8,6 +8,13 @@
       "when": 1726891920987,
       "tag": "0000_milky_toad",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1726927635884,
+      "tag": "0001_remarkable_puppet_master",
+      "breakpoints": true
     }
   ]
 }

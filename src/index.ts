@@ -8,9 +8,25 @@ import distance from "sharp-phash/distance.js";
 import {ApplicationCommandOptionType, PermissionsBitField} from "discord.js";
 
 
-const main = async () => {
-    await discordClient.login(process.env.DISCORD_TOKEN)
+const whitelist = [
+    "tenor.com",
+    "giphy.com",
+    "discord.com/channels",
+    "cdn.discordapp.com",
+    "media.discordapp.net"
+]
 
+const main = async () => {
+
+
+    Promise.all(whitelist.map((url) => {
+        db.insert(link_blacklist).values({
+            url
+        }).execute().catch(() => {
+            console.log(url + "Already exists in blacklist")
+        })
+    }))
+    await discordClient.login(process.env.DISCORD_TOKEN)
 
     discordClient.on('ready', async () => {
         console.log(`Logged in as ${discordClient.user?.tag}!`);
@@ -50,30 +66,44 @@ const main = async () => {
         }
     })
     discordClient.on('messageCreate', async message => {
+
+        if (message.author.bot) return;
         const post = await db.insert(posts).values({
             user_id: message.author.id,
             message: message.content,
+            messageUrl: message.url
         }).execute()
         if (message.attachments.size) {
             let isSimilarImageFound = false;
+            const startWhole = performance.now();
             for (const attachment of message.attachments.values()) {
                 try {
                     const response = Buffer.from(await fetch(attachment.url).then(res => res.arrayBuffer()))
+                    const start = performance.now();
                     const hash = await phash(response)
+                    const end = performance.now();
+                    console.log(`HASH: ${end - start}ms.`);
                     const bufferHash = Buffer.from(hash, 'binary')
                     if (!isSimilarImageFound) {
+                        const start = performance.now();
+
+
                         const similarAttachments = await db.select().from(attachments).innerJoin(
                             posts, eq(attachments.postId, posts.id)
                         ).where(
                             gt(posts.created_at, new Date(Date.now() - 1000 * 60 * 60 * 24))
                         )
-
+                        const end = performance.now()
+                        console.log(`DB: ${end - start}ms.`);
 
                         for (const similarAttachment of similarAttachments) {
                             const distanceValue = distance(hash, similarAttachment.attachments.pHash.toString('binary'))
-                            if (distanceValue < 16) {
+                            if (distanceValue < 5) {
                                 isSimilarImageFound = true;
-                                await message.reply("Repost yapma eşşek")
+                                const similarPostUrl = await db.select().from(posts).where(
+                                    eq(posts.id, similarAttachment.attachments.postId)
+                                ).execute().then((res) => res[0].messageUrl)
+                                await message.reply("Repost yapma eşşek " + similarPostUrl)
                                 break;
                             }
                         }
@@ -83,22 +113,18 @@ const main = async () => {
                         postId: post.lastInsertRowid as number
                     }).execute()
                 } catch (e) {
-                    console.error(e)
-                    console.log("content-type:", attachment.contentType)
-                    console.log("url:", attachment.url)
-                    console.log("size:", attachment.size)
+
                 }
             }
+            const endWhole = performance.now();
+            console.log(`WHOLE: ${endWhole - startWhole}ms.`);
         } else {
             const messageLinks = message.content.match(/https?:\/\/[^\s]+/g)
             const linkBlacklist = await db.select().from(link_blacklist).then((res) => res.map(({url}) => url))
             if (messageLinks && messageLinks.length) {
                 for (const messageLink of messageLinks) {
-                    const rootMessageLink = rootDomain(messageLink)
-                    console.log(rootMessageLink)
 
-
-                    if (linkBlacklist.includes(rootMessageLink)) {
+                    if (linkBlacklist.some((b) => messageLink.includes(b))) {
                         break;
                     }
 
@@ -109,7 +135,7 @@ const main = async () => {
                         )).execute()
 
                     if (dbMessageLinks.map((link) => link.links.url).includes(messageLink)) {
-                        await message.reply("Repost yapma eşşek")
+                        await message.reply("Repost yapma eşşek " + message.url)
                         break;
                     }
 
@@ -122,23 +148,9 @@ const main = async () => {
 
             }
         }
+
     })
 
-}
-
-
-function rootDomain(_hostname: string) {
-    const hostname = new URL(_hostname).hostname;
-    let parts = hostname.split(".");
-    if (parts.length <= 2)
-        return hostname;
-
-    parts = parts.slice(-3);
-    if (['co', 'com'].indexOf(parts[1]) > -1)
-        return parts.join('.');
-
-    const b = parts.slice(-2).join('.');
-    return b.replace("/", "")
 }
 
 main()
