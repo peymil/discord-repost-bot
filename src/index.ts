@@ -13,7 +13,8 @@ const whitelist = [
     "giphy.com",
     "discord.com/channels",
     "cdn.discordapp.com",
-    "media.discordapp.net"
+    "media.discordapp.net",
+    "imgur.com"
 ]
 
 const main = async () => {
