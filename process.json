@@ -1,6 +1,6 @@
 {
   "script": "npm run start",
-  "watch": true,
+  "watch": false,
   "ignore_watch": ["db, node_modules"],
   "watch_options": {
     "followSymlinks": false

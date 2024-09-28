@@ -38,4 +38,4 @@ jobs:
         run: rsync --relative -avz  ./ root@${{ secrets.SERVER_URL }}:~/discord-repost-bot
 
       - name: Run SSH Command
-        run: ssh root@${{ secrets.SERVER_URL }} -f 'source ~/.nvm/nvm.sh && cd discord-repost-bot && npm install && npm run build'
+        run: ssh root@${{ secrets.SERVER_URL }} -f 'source ~/.nvm/nvm.sh && cd discord-repost-bot && npm install && npm run build && pm2 restart discord-repost-bot'
