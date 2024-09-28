@@ -2,7 +2,7 @@ import "dotenv/config";
 import {discordClient} from "./discord";
 import {db} from "./sqlite";
 import phash from "sharp-phash"
-import {and, eq, gt, lt, sql} from "drizzle-orm";
+import {and, asc, eq, gt} from "drizzle-orm";
 import {attachments, link_blacklist, links, posts} from "./schema";
 import distance from "sharp-phash/distance.js";
 import {ApplicationCommandOptionType, PermissionsBitField} from "discord.js";
@@ -76,26 +76,17 @@ const main = async () => {
         }).execute()
         if (message.attachments.size) {
             let isSimilarImageFound = false;
-            const startWhole = performance.now();
             for (const attachment of message.attachments.values()) {
                 try {
                     const response = Buffer.from(await fetch(attachment.url).then(res => res.arrayBuffer()))
-                    const start = performance.now();
                     const hash = await phash(response)
-                    const end = performance.now();
-                    console.log(`HASH: ${end - start}ms.`);
                     const bufferHash = Buffer.from(hash, 'binary')
                     if (!isSimilarImageFound) {
-                        const start = performance.now();
-
-
                         const similarAttachments = await db.select().from(attachments).innerJoin(
                             posts, eq(attachments.postId, posts.id)
                         ).where(
                             gt(posts.created_at, new Date(Date.now() - 1000 * 60 * 60 * 24))
-                        )
-                        const end = performance.now()
-                        console.log(`DB: ${end - start}ms.`);
+                        ).orderBy(asc(posts.created_at));
 
                         for (const similarAttachment of similarAttachments) {
                             const distanceValue = distance(hash, similarAttachment.attachments.pHash.toString('binary'))
@@ -114,11 +105,9 @@ const main = async () => {
                         postId: post.lastInsertRowid as number
                     }).execute()
                 } catch (e) {
-
+                    console.error(e)
                 }
             }
-            const endWhole = performance.now();
-            console.log(`WHOLE: ${endWhole - startWhole}ms.`);
         } else {
             const messageLinks = message.content.match(/https?:\/\/[^\s]+/g)
             const linkBlacklist = await db.select().from(link_blacklist).then((res) => res.map(({url}) => url))
