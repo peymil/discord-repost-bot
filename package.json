@@ -17,9 +17,9 @@
     "typescript": "^5.6.2"
   },
   "scripts": {
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "swc src --out-dir dist"
+    "build": "swc src/ --out-dir dist"
   },
   "engines": {
     "node": ">=v20.17.0"
