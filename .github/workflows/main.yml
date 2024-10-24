@@ -39,6 +39,9 @@ jobs:
       - name: Build app
         run: npm install && npm run build
 
+      - name: Run SSH Command
+        run: ssh -t root@${{ secrets.SERVER_URL }} 'source ~/.nvm/nvm.sh; cd discord-repost-bot; rm -rf dist'
+
       - name: Run rsync
         run: rsync --relative -avz  ./ root@${{ secrets.SERVER_URL }}:~/discord-repost-bot
 
