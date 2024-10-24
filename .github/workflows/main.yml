@@ -7,13 +7,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.17.0
+
       - uses: 1password/load-secrets-action/configure@v2
         with:
           service-account-token: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
 
-      #  - name: Build app
-      #     run: npm install && npm run build
 
       - name: Load secret
         id: op-load-secret
@@ -34,8 +36,11 @@ jobs:
           key: ${{ steps.op-load-secret.outputs.PRIVATE_SECRET }}
           known_hosts: ${{ secrets.KNOWN_HOSTS_OF_TARGET }}
 
+      - name: Build app
+        run: npm install && npm run build
+
       - name: Run rsync
         run: rsync --relative -avz  ./ root@${{ secrets.SERVER_URL }}:~/discord-repost-bot
 
       - name: Run SSH Command
-        run: ssh -t root@${{ secrets.SERVER_URL }} 'source ~/.nvm/nvm.sh; cd discord-repost-bot; npm install; rm -rf dist; npm run build; pm2 restart discord-repost-bot'
+        run: ssh -t root@${{ secrets.SERVER_URL }} 'source ~/.nvm/nvm.sh; cd discord-repost-bot; pm2 restart discord-repost-bot'
