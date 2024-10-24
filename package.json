@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "dependencies": {
     "@elastic/elasticsearch": "^8.15.0",
     "better-sqlite3": "^11.3.0",
@@ -19,7 +20,7 @@
   "scripts": {
     "start": "node dist/src/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "swc src/ --out-dir dist"
+    "build": "swc src --out-dir dist"
   },
   "engines": {
     "node": ">=v20.17.0"

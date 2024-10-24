@@ -1,9 +1,9 @@
 import "dotenv/config";
-import {discordClient} from "./discord";
-import {db} from "./sqlite";
+import {discordClient} from "./discord.js";
+import {db} from "./sqlite.js";
 import phash from "sharp-phash"
 import {and, asc, eq, gt} from "drizzle-orm";
-import {attachments, link_blacklist, links, posts} from "./schema";
+import {attachments, link_blacklist, links, posts} from "./schema.js";
 import distance from "sharp-phash/distance.js";
 import {ApplicationCommandOptionType, PermissionsBitField} from "discord.js";
 
