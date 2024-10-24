@@ -34,8 +34,11 @@ jobs:
           key: ${{ steps.op-load-secret.outputs.PRIVATE_SECRET }}
           known_hosts: ${{ secrets.KNOWN_HOSTS_OF_TARGET }}
 
+      - name: Build
+        run: npm install && npm run build
+
       - name: Run rsync
         run: rsync --relative -avz  ./ root@${{ secrets.SERVER_URL }}:~/discord-repost-bot
 
       - name: Run SSH Command
-        run: ssh root@${{ secrets.SERVER_URL }} -f 'source ~/.nvm/nvm.sh && cd discord-repost-bot && npm install && rm -rf dist && npm run build && pm2 restart discord-repost-bot'
+        run: ssh root@${{ secrets.SERVER_URL }} -f 'source ~/.nvm/nvm.sh && cd discord-repost-bot && pm2 restart discord-repost-bot'
