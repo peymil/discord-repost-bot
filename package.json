@@ -9,6 +9,8 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "@swc/cli": "^0.4.1-nightly.20240914",
+    "@swc/core": "^1.7.39",
     "@types/better-sqlite3": "^7.6.11",
     "drizzle-kit": "^0.24.2",
     "ts-node": "^10.9.2",
@@ -17,6 +19,9 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "tsc"
+    "build": "swc src --out-dir dist"
+  },
+  "engines": {
+    "node": ">=v20.17.0"
   }
 }
