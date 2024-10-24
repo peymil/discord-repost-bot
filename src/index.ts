@@ -122,7 +122,9 @@ const main = async () => {
                         and(
                             eq(links.url, messageLink),
                             gt(posts.created_at, new Date(Date.now() - 1000 * 60 * 60 * 24))
-                        )).execute()
+                        ))
+                        .orderBy(asc(posts.created_at))
+                        .execute()
 
                     if (dbMessageLinks.map((link) => link.links.url).includes(messageLink)) {
                         await message.reply("Repost yapma eşşek " + message.url)

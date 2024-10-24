@@ -1,9 +1,8 @@
 import {text, integer, index, sqliteTable, blob, unique} from "drizzle-orm/sqlite-core";
-import {sql} from "drizzle-orm";
 
 export const posts = sqliteTable('posts', {
     id: integer('id').primaryKey(),
-    created_at: integer('created_at', {mode: "timestamp"}).defaultNow().notNull(),
+    created_at: integer('created_at', {mode: "timestamp_ms"}).defaultNow().notNull(),
     user_id: text('user_id').notNull(),
     messageUrl: text('message_url').notNull(),
     message: text('message').notNull(),
