@@ -23,6 +23,6 @@
     "build": "swc src --out-dir dist"
   },
   "engines": {
-    "node": ">=v20.17.0"
+     "node": "20" 
   }
 }
