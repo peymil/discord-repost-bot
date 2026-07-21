@@ -187,10 +187,7 @@ const main = async () => {
             }
         ]
 
-        for (const guild of discordClient.guilds.cache.values()) {
-            await guild.commands.set(commands)
-            console.log(`Registered commands for guild: ${guild.name} (${guild.id})`)
-        }
+        await discordClient.application!.commands.set(commands)
     })
     discordClient.on("interactionCreate", async interaction => {
         if (!interaction.isCommand()) return;
