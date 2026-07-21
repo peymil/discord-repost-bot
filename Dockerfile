@@ -8,7 +8,8 @@ RUN npm run build
 
 FROM node:24-alpine
 
-RUN apk add --no-cache litestream
+ADD https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.tar.gz /tmp/litestream.tar.gz
+RUN tar -xzf /tmp/litestream.tar.gz -C /usr/local/bin litestream && rm /tmp/litestream.tar.gz
 
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
