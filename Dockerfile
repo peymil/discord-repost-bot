@@ -26,4 +26,4 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENV NODE_ENV=production
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["litestream", "replicate"]
+CMD ["litestream", "replicate", "-config", "/app/litestream.yml"]
