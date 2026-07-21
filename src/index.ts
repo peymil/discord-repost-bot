@@ -79,113 +79,118 @@ const main = async () => {
 
     discordClient.on('ready', async () => {
         console.log(`Logged in as ${discordClient.user?.tag}!`);
-        await discordClient.application!.commands.create({
-            name: "register_blacklist",
-            dmPermission: false,
-            defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
-            description: "Register website to whitelist.",
-            options: [
-                {
-                    name: "url",
-                    type: ApplicationCommandOptionType.String,
-                    description: "URL to register google.com, twitter.com, etc.",
-                    required: true
-                }
-            ]
-        })
 
-        await discordClient.application!.commands.create({
-            name: "list_blacklist",
-            dmPermission: false,
-            defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
-            description: "List blacklist websites"
-        })
+        const commands = [
+            {
+                name: "register_blacklist",
+                dmPermission: false,
+                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
+                description: "Register website to whitelist.",
+                options: [
+                    {
+                        name: "url",
+                        type: ApplicationCommandOptionType.String,
+                        description: "URL to register google.com, twitter.com, etc.",
+                        required: true
+                    }
+                ]
+            },
+            {
+                name: "list_blacklist",
+                dmPermission: false,
+                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
+                description: "List blacklist websites"
+            },
+            {
+                name: "whitelist",
+                dmPermission: false,
+                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
+                description: "Manage URL whitelist patterns",
+                options: [
+                    {
+                        name: "add",
+                        type: ApplicationCommandOptionType.Subcommand,
+                        description: "Add a URL pattern to whitelist (supports wildcards)",
+                        options: [
+                            {
+                                name: "pattern",
+                                type: ApplicationCommandOptionType.String,
+                                description: "URL pattern to whitelist (e.g., *.example.com, example.com/*)",
+                                required: true
+                            }
+                        ]
+                    },
+                    {
+                        name: "remove",
+                        type: ApplicationCommandOptionType.Subcommand,
+                        description: "Remove a URL pattern from whitelist",
+                        options: [
+                            {
+                                name: "pattern",
+                                type: ApplicationCommandOptionType.String,
+                                description: "URL pattern to remove from whitelist",
+                                required: true
+                            }
+                        ]
+                    },
+                    {
+                        name: "list",
+                        type: ApplicationCommandOptionType.Subcommand,
+                        description: "List all whitelisted URL patterns"
+                    }
+                ]
+            },
+            {
+                name: "settings",
+                dmPermission: false,
+                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
+                description: "Manage guild settings",
+                options: [
+                    {
+                        name: "set",
+                        type: ApplicationCommandOptionType.Subcommand,
+                        description: "Set a guild setting",
+                        options: [
+                            {
+                                name: "name",
+                                type: ApplicationCommandOptionType.String,
+                                description: "Setting name",
+                                required: true
+                            },
+                            {
+                                name: "value",
+                                type: ApplicationCommandOptionType.String,
+                                description: "Setting value",
+                                required: true
+                            }
+                        ]
+                    },
+                    {
+                        name: "remove",
+                        type: ApplicationCommandOptionType.Subcommand,
+                        description: "Remove a guild setting",
+                        options: [
+                            {
+                                name: "name",
+                                type: ApplicationCommandOptionType.String,
+                                description: "Setting name to remove",
+                                required: true
+                            }
+                        ]
+                    },
+                    {
+                        name: "list",
+                        type: ApplicationCommandOptionType.Subcommand,
+                        description: "List all guild settings"
+                    }
+                ]
+            }
+        ]
 
-        await discordClient.application!.commands.create({
-            name: "whitelist",
-            dmPermission: false,
-            defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
-            description: "Manage URL whitelist patterns",
-            options: [
-                {
-                    name: "add",
-                    type: ApplicationCommandOptionType.Subcommand,
-                    description: "Add a URL pattern to whitelist (supports wildcards)",
-                    options: [
-                        {
-                            name: "pattern",
-                            type: ApplicationCommandOptionType.String,
-                            description: "URL pattern to whitelist (e.g., *.example.com, example.com/*)",
-                            required: true
-                        }
-                    ]
-                },
-                {
-                    name: "remove",
-                    type: ApplicationCommandOptionType.Subcommand,
-                    description: "Remove a URL pattern from whitelist",
-                    options: [
-                        {
-                            name: "pattern",
-                            type: ApplicationCommandOptionType.String,
-                            description: "URL pattern to remove from whitelist",
-                            required: true
-                        }
-                    ]
-                },
-                {
-                    name: "list",
-                    type: ApplicationCommandOptionType.Subcommand,
-                    description: "List all whitelisted URL patterns"
-                }
-            ]
-        })
-
-        await discordClient.application!.commands.create({
-            name: "settings",
-            dmPermission: false,
-            defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
-            description: "Manage guild settings",
-            options: [
-                {
-                    name: "set",
-                    type: ApplicationCommandOptionType.Subcommand,
-                    description: "Set a guild setting",
-                    options: [
-                        {
-                            name: "name",
-                            type: ApplicationCommandOptionType.String,
-                            description: "Setting name",
-                            required: true
-                        },
-                        {
-                            name: "value",
-                            type: ApplicationCommandOptionType.String,
-                            description: "Setting value",
-                            required: true
-                        }
-                    ]
-                },
-                {
-                    name: "remove",
-                    type: ApplicationCommandOptionType.Subcommand,
-                    description: "Remove a guild setting",
-                    options: [
-                        {
-                            name: "name",
-                            type: ApplicationCommandOptionType.String,
-                            description: "Setting name to remove",
-                            required: true
-                        }
-                    ]
-                },
-                {
-                    name: "list",
-                    type: ApplicationCommandOptionType.Subcommand,
-                    description: "List all guild settings"
-                }
-            ]
-        })
+        for (const guild of discordClient.guilds.cache.values()) {
+            await guild.commands.set(commands)
+            console.log(`Registered commands for guild: ${guild.name} (${guild.id})`)
+        }
     })
     discordClient.on("interactionCreate", async interaction => {
         if (!interaction.isCommand()) return;
