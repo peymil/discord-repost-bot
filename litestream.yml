@@ -7,5 +7,4 @@ dbs:
         secret-access-key: ${S3_SECRET_ACCESS_KEY}
         region: ${S3_REGION}
 
-exec:
-  cmd: npm run start
+exec: npm run start
