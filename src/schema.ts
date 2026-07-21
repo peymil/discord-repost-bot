@@ -38,3 +38,17 @@ export const link_blacklist = sqliteTable('link_blacklist', {
         urlIdx: unique('link_blacklist_url_idx').on(table.url)
     }
 })
+
+export const guilds = sqliteTable('guilds', {
+    guild_id: text('guild_id').primaryKey(),
+    settings: text('settings', {mode: 'json'}).notNull().default('{}'),
+    created_at: integer('created_at', {mode: "timestamp_ms"}).defaultNow().notNull()
+})
+
+export const whitelist = sqliteTable('whitelist', {
+    pattern: text('pattern').notNull()
+}, (table) => {
+    return {
+        patternIdx: unique('whitelist_pattern_idx').on(table.pattern)
+    }
+})
