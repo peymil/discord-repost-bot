@@ -8,4 +8,4 @@ dbs:
         region: ${S3_REGION}
 
 exec:
-  - cmd: npm run start
+  cmd: npm run start
