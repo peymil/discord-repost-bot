@@ -2,7 +2,7 @@ import "dotenv/config";
 import {discordClient} from "./discord.js";
 import {db} from "./sqlite.js";
 import phash from "sharp-phash"
-import {and, asc, eq, gt} from "drizzle-orm";
+import {and, asc, eq, gt, or, isNull} from "drizzle-orm";
 import {attachments, link_blacklist, links, posts, guilds, whitelist as whitelistTable} from "./schema.js";
 import distance from "sharp-phash/distance.js";
 import {ApplicationCommandOptionType, PermissionsBitField} from "discord.js";
@@ -194,11 +194,17 @@ const main = async () => {
         if (interaction.commandName === "register_blacklist") {
             const url = interaction.options.get("url")!;
             await db.insert(link_blacklist).values({
-                url: url.value as string
+                url: url.value as string,
+                guild_id: interaction.guildId
             }).execute()
             await interaction.reply(`URL ${url} added to blacklist`)
         } else if (interaction.commandName === "list_blacklist") {
-            const urls = await db.select().from(link_blacklist).execute()
+            const urls = await db.select().from(link_blacklist).where(
+                or(
+                    eq(link_blacklist.guild_id, interaction.guildId),
+                    isNull(link_blacklist.guild_id)
+                )
+            ).execute()
             await interaction.reply(`Blacklisted URLs: ${urls.map(({url}) => url).join(", ")}`)
         } else if (interaction.commandName === "whitelist") {
             if (!hasPermission(interaction)) {
@@ -211,15 +217,29 @@ const main = async () => {
             if (subcommand === "add") {
                 const pattern = interaction.options.get("pattern")!;
                 await db.insert(whitelistTable).values({
-                    pattern: pattern.value as string
+                    pattern: pattern.value as string,
+                    guild_id: interaction.guildId
                 }).execute()
                 await interaction.reply(`Pattern "${pattern.value}" added to whitelist`)
             } else if (subcommand === "remove") {
                 const pattern = interaction.options.get("pattern")!;
-                await db.delete(whitelistTable).where(eq(whitelistTable.pattern, pattern.value as string)).execute()
+                await db.delete(whitelistTable).where(
+                    and(
+                        eq(whitelistTable.pattern, pattern.value as string),
+                        or(
+                            eq(whitelistTable.guild_id, interaction.guildId),
+                            isNull(whitelistTable.guild_id)
+                        )
+                    )
+                ).execute()
                 await interaction.reply(`Pattern "${pattern.value}" removed from whitelist`)
             } else if (subcommand === "list") {
-                const patterns = await db.select().from(whitelistTable).execute()
+                const patterns = await db.select().from(whitelistTable).where(
+                    or(
+                        eq(whitelistTable.guild_id, interaction.guildId),
+                        isNull(whitelistTable.guild_id)
+                    )
+                ).execute()
                 await interaction.reply(`Whitelisted patterns: ${patterns.map(({pattern}) => pattern).join(", ")}`)
             }
         } else if (interaction.commandName === "settings") {
@@ -291,7 +311,8 @@ const main = async () => {
         const post = await db.insert(posts).values({
             user_id: message.author.id,
             message: message.content,
-            messageUrl: message.url
+            messageUrl: message.url,
+            guild_id: message.guildId
         }).execute()
         if (message.attachments.size) {
             let isSimilarImageFound = false;
@@ -304,7 +325,10 @@ const main = async () => {
                         const similarAttachments = await db.select().from(attachments).innerJoin(
                             posts, eq(attachments.postId, posts.id)
                         ).where(
-                            gt(posts.created_at, new Date(Date.now() - await getGuildRepostInterval(message.guildId)))
+                            and(
+                                gt(posts.created_at, new Date(Date.now() - await getGuildRepostInterval(message.guildId))),
+                                eq(posts.guild_id, message.guildId)
+                            )
                         ).orderBy(asc(posts.created_at));
 
                         for (const similarAttachment of similarAttachments) {
@@ -321,7 +345,8 @@ const main = async () => {
                     }
                     await db.insert(attachments).values({
                         pHash: bufferHash,
-                        postId: post.lastInsertRowid as number
+                        postId: post.lastInsertRowid as number,
+                        guild_id: message.guildId
                     }).execute()
                 } catch (e) {
                     console.error(e)
@@ -329,8 +354,18 @@ const main = async () => {
             }
         } else {
             const messageLinks = message.content.match(/https?:\/\/[^\s]+/g)
-            const linkBlacklist = await db.select().from(link_blacklist).then((res) => res.map(({url}) => url))
-            const linkWhitelist = await db.select().from(whitelistTable).then((res) => res.map(({pattern}) => pattern))
+            const linkBlacklist = await db.select().from(link_blacklist).where(
+                or(
+                    eq(link_blacklist.guild_id, message.guildId),
+                    isNull(link_blacklist.guild_id)
+                )
+            ).then((res) => res.map(({url}) => url))
+            const linkWhitelist = await db.select().from(whitelistTable).where(
+                or(
+                    eq(whitelistTable.guild_id, message.guildId),
+                    isNull(whitelistTable.guild_id)
+                )
+            ).then((res) => res.map(({pattern}) => pattern))
             
             if (messageLinks && messageLinks.length) {
                 for (const messageLink of messageLinks) {
@@ -347,6 +382,7 @@ const main = async () => {
                     const dbMessageLinks = await db.select().from(links).innerJoin(posts, eq(links.postId, posts.id)).where(
                         and(
                             eq(links.url, messageLink),
+                            eq(posts.guild_id, message.guildId),
                             gt(posts.created_at, new Date(Date.now() - await getGuildRepostInterval(message.guildId)))
                         ))
                         .orderBy(asc(posts.created_at))
@@ -359,7 +395,8 @@ const main = async () => {
 
                     await db.insert(links).values({
                         url: messageLink,
-                        postId: post.lastInsertRowid as number
+                        postId: post.lastInsertRowid as number,
+                        guild_id: message.guildId
                     }).execute()
                 }
 
