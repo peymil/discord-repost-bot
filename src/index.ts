@@ -67,14 +67,14 @@ const getGuildRepostInterval = async (guildId: string | null) => {
 
 const main = async () => {
 
-
-    Promise.all(whitelist.map((url) => {
-        db.insert(link_blacklist).values({
-            url
-        }).execute().catch(() => {
-            console.log(url + "Already exists in blacklist")
-        })
-    }))
+    for (const url of whitelist) {
+        const existing = await db.select().from(link_blacklist).where(
+            and(eq(link_blacklist.url, url), isNull(link_blacklist.guild_id))
+        ).limit(1).execute()
+        if (existing.length === 0) {
+            await db.insert(link_blacklist).values({ url }).execute()
+        }
+    }
     await discordClient.login(process.env.DISCORD_TOKEN)
 
     discordClient.on('ready', async () => {
