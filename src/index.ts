@@ -84,7 +84,6 @@ const main = async () => {
             {
                 name: "register_blacklist",
                 dmPermission: false,
-                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
                 description: "Register website to whitelist.",
                 options: [
                     {
@@ -98,13 +97,11 @@ const main = async () => {
             {
                 name: "list_blacklist",
                 dmPermission: false,
-                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
                 description: "List blacklist websites"
             },
             {
                 name: "whitelist",
                 dmPermission: false,
-                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
                 description: "Manage URL whitelist patterns",
                 options: [
                     {
@@ -143,7 +140,6 @@ const main = async () => {
             {
                 name: "settings",
                 dmPermission: false,
-                defaultMemberPermissions: PermissionsBitField.Flags.Administrator,
                 description: "Manage guild settings",
                 options: [
                     {
@@ -192,23 +188,31 @@ const main = async () => {
     discordClient.on("interactionCreate", async interaction => {
         if (!interaction.isCommand()) return;
         if (interaction.commandName === "register_blacklist") {
+            if (!hasPermission(interaction)) {
+                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
+                return
+            }
             const url = interaction.options.get("url")!;
             await db.insert(link_blacklist).values({
                 url: url.value as string,
                 guild_id: interaction.guildId
             }).execute()
-            await interaction.reply(`URL ${url} added to blacklist`)
+            await interaction.reply({ content: `URL ${url} added to blacklist`, ephemeral: true })
         } else if (interaction.commandName === "list_blacklist") {
+            if (!hasPermission(interaction)) {
+                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
+                return
+            }
             const urls = await db.select().from(link_blacklist).where(
                 or(
                     eq(link_blacklist.guild_id, interaction.guildId),
                     isNull(link_blacklist.guild_id)
                 )
             ).execute()
-            await interaction.reply(`Blacklisted URLs: ${urls.map(({url}) => url).join(", ")}`)
+            await interaction.reply({ content: `Blacklisted URLs: ${urls.map(({url}) => url).join(", ")}`, ephemeral: true })
         } else if (interaction.commandName === "whitelist") {
             if (!hasPermission(interaction)) {
-                await interaction.reply("You don't have permission to use this command")
+                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
                 return
             }
             
@@ -220,7 +224,7 @@ const main = async () => {
                     pattern: pattern.value as string,
                     guild_id: interaction.guildId
                 }).execute()
-                await interaction.reply(`Pattern "${pattern.value}" added to whitelist`)
+                await interaction.reply({ content: `Pattern "${pattern.value}" added to whitelist`, ephemeral: true })
             } else if (subcommand === "remove") {
                 const pattern = interaction.options.get("pattern")!;
                 await db.delete(whitelistTable).where(
@@ -232,7 +236,7 @@ const main = async () => {
                         )
                     )
                 ).execute()
-                await interaction.reply(`Pattern "${pattern.value}" removed from whitelist`)
+                await interaction.reply({ content: `Pattern "${pattern.value}" removed from whitelist`, ephemeral: true })
             } else if (subcommand === "list") {
                 const patterns = await db.select().from(whitelistTable).where(
                     or(
@@ -240,17 +244,17 @@ const main = async () => {
                         isNull(whitelistTable.guild_id)
                     )
                 ).execute()
-                await interaction.reply(`Whitelisted patterns: ${patterns.map(({pattern}) => pattern).join(", ")}`)
+                await interaction.reply({ content: `Whitelisted patterns: ${patterns.map(({pattern}) => pattern).join(", ")}`, ephemeral: true })
             }
         } else if (interaction.commandName === "settings") {
             if (!hasPermission(interaction)) {
-                await interaction.reply("You don't have permission to use this command")
+                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
                 return
             }
             
             const guildId = interaction.guildId;
             if (!guildId) {
-                await interaction.reply("This command can only be used in a guild")
+                await interaction.reply({ content: "This command can only be used in a guild", ephemeral: true })
                 return
             }
             
@@ -276,13 +280,13 @@ const main = async () => {
                     set: { settings: JSON.stringify(settings) }
                 }).execute()
                 
-                await interaction.reply(`Setting "${name.value}" set to "${value.value}"`)
+                await interaction.reply({ content: `Setting "${name.value}" set to "${value.value}"`, ephemeral: true })
             } else if (subcommand === "remove") {
                 const name = interaction.options.get("name")!;
                 
                 const guild = await db.select().from(guilds).where(eq(guilds.guild_id, guildId)).execute()
                 if (guild.length === 0) {
-                    await interaction.reply("No settings found for this guild")
+                    await interaction.reply({ content: "No settings found for this guild", ephemeral: true })
                     return
                 }
                 
@@ -291,17 +295,17 @@ const main = async () => {
                 
                 await db.update(guilds).set({ settings: JSON.stringify(settings) }).where(eq(guilds.guild_id, guildId)).execute()
                 
-                await interaction.reply(`Setting "${name.value}" removed`)
+                await interaction.reply({ content: `Setting "${name.value}" removed`, ephemeral: true })
             } else if (subcommand === "list") {
                 const guild = await db.select().from(guilds).where(eq(guilds.guild_id, guildId)).execute()
                 if (guild.length === 0) {
-                    await interaction.reply("No settings found for this guild")
+                    await interaction.reply({ content: "No settings found for this guild", ephemeral: true })
                     return
                 }
                 
                 const settings = JSON.parse(guild[0].settings)
                 const settingsList = Object.entries(settings).map(([key, value]) => `${key}: ${value}`).join("\n")
-                await interaction.reply(`Guild settings:\n${settingsList}`)
+                await interaction.reply({ content: `Guild settings:\n${settingsList}`, ephemeral: true })
             }
         }
     })
