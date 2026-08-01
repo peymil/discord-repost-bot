@@ -29,9 +29,8 @@ const isAdmin = (member: any) => {
 
 const hasPermission = (interaction: any) => {
     const userId = interaction.user.id;
-    const member = interaction.member;
     
-    return isSuperuser(userId) || isAdmin(member);
+    return isSuperuser(userId);
 }
 
 const patternMatchesUrl = (pattern: string, url: string) => {
@@ -189,7 +188,7 @@ const main = async () => {
         if (!interaction.isCommand()) return;
         if (interaction.commandName === "register_blacklist") {
             if (!hasPermission(interaction)) {
-                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
+                await interaction.reply({ content: "Lolcüler bana komut veremez.", ephemeral: true })
                 return
             }
             const url = interaction.options.get("url")!;
@@ -200,7 +199,7 @@ const main = async () => {
             await interaction.reply({ content: `URL ${url} added to blacklist`, ephemeral: true })
         } else if (interaction.commandName === "list_blacklist") {
             if (!hasPermission(interaction)) {
-                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
+                await interaction.reply({ content: "Lolcüler bana komut veremez.", ephemeral: true })
                 return
             }
             const urls = await db.select().from(link_blacklist).where(
@@ -212,7 +211,7 @@ const main = async () => {
             await interaction.reply({ content: `Blacklisted URLs: ${urls.map(({url}) => url).join(", ")}`, ephemeral: true })
         } else if (interaction.commandName === "whitelist") {
             if (!hasPermission(interaction)) {
-                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
+                await interaction.reply({ content: "Lolcüler bana komut veremez.", ephemeral: true })
                 return
             }
             
@@ -248,7 +247,7 @@ const main = async () => {
             }
         } else if (interaction.commandName === "settings") {
             if (!hasPermission(interaction)) {
-                await interaction.reply({ content: "You don't have permission to use this command", ephemeral: true })
+                await interaction.reply({ content: "Lolcüler bana komut veremez.", ephemeral: true })
                 return
             }
             
