@@ -392,7 +392,7 @@ const main = async () => {
                         .execute()
 
                     if (dbMessageLinks.map((link) => link.links.url).includes(messageLink)) {
-                        await message.reply("Repost yapma eşşek " + message.url)
+                        await message.reply("Repost yapma eşşek " + dbMessageLinks[0].posts.messageUrl)
                         break;
                     }
 
