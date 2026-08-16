@@ -40,6 +40,30 @@ const patternMatchesUrl = (pattern: string, url: string) => {
     return regex.test(url);
 }
 
+const existingRepostReplies = new Map<string, Set<string>>()
+
+const getExistingMessageIds = async (channel: any, targetMessageUrls: string[]) => {
+    const messageIds = targetMessageUrls
+        .map(url => url.split("/").pop())
+        .filter(Boolean) as string[]
+
+    if (messageIds.length === 0) return new Set<string>()
+
+    const cacheKey = `${channel.id}:${messageIds.sort().join(",")}`
+    if (existingRepostReplies.has(cacheKey)) return existingRepostReplies.get(cacheKey)!
+
+    const existing = new Set<string>()
+    for (const targetId of messageIds) {
+        try {
+            await channel.messages.fetch(targetId)
+            existing.add(targetId)
+        } catch {}
+    }
+
+    existingRepostReplies.set(cacheKey, existing)
+    return existing
+}
+
 const getGuildRepostInterval = async (guildId: string | null) => {
     if (!guildId) return 24 * 60 * 60 * 1000; // Default 24 hours
     
@@ -341,8 +365,11 @@ const main = async () => {
                                 const similarPostUrl = await db.select().from(posts).where(
                                     eq(posts.id, similarAttachment.attachments.postId)
                                 ).execute().then((res) => res[0].messageUrl)
-                                await message.reply("Repost yapma eşşek " + similarPostUrl)
-                                break;
+                                const existingIds = await getExistingMessageIds(message.channel, [similarPostUrl])
+                                if (existingIds.has(similarPostUrl.split("/").pop()!)) {
+                                    await message.reply("Repost yapma eşşek " + similarPostUrl)
+                                    break;
+                                }
                             }
                         }
                     }
@@ -392,7 +419,15 @@ const main = async () => {
                         .execute()
 
                     if (dbMessageLinks.map((link) => link.links.url).includes(messageLink)) {
-                        await message.reply("Repost yapma eşşek " + dbMessageLinks[0].posts.messageUrl)
+                        const repostUrls = dbMessageLinks.map(l => l.posts.messageUrl)
+                        const existingIds = await getExistingMessageIds(message.channel, repostUrls)
+                        for (const linkRow of dbMessageLinks) {
+                            const msgId = linkRow.posts.messageUrl.split("/").pop()!
+                            if (existingIds.has(msgId)) {
+                                await message.reply("Repost yapma eşşek " + linkRow.posts.messageUrl)
+                                break;
+                            }
+                        }
                         break;
                     }
 
