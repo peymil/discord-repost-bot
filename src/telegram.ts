@@ -3,7 +3,7 @@ import {StringSession} from "telegram/sessions/index.js";
 import {NewMessage, NewMessageEvent} from "telegram/events/index.js";
 import {AttachmentBuilder} from "discord.js";
 import {discordClient} from "./discord.js";
-import {buildHookIndex, hooksForChat} from "./telegramHooks.js";
+import {buildHookIndex, hooksForChat, knownChats} from "./telegramHooks.js";
 
 const apiId = parseInt(process.env.TELEGRAM_API_ID || "0", 10)
 const apiHash = process.env.TELEGRAM_API_HASH || ""
@@ -67,13 +67,18 @@ const senderName = async (message: Api.Message): Promise<string> => {
 
 const handleTelegramMessage = async (event: NewMessageEvent) => {
     const message = event.message
-    if (message.out) return
 
     const chatId = message.chatId?.toString()
     if (!chatId) return
 
     const hooks = hooksForChat(chatId)
-    if (hooks.length === 0) return
+    if (hooks.length === 0) {
+        if (process.env.TELEGRAM_DEBUG) {
+            console.log(`[telegram] message in chat ${chatId} has no hook. Known chats: ${knownChats().join(", ") || "(none)"}`)
+        }
+        return
+    }
+    console.log(`[telegram] forwarding message from ${chatId} to ${hooks.length} thread(s)`)
 
     const text = message.message || ""
     const hasMedia = !!(message.photo || message.document || message.video || message.audio || message.voice)

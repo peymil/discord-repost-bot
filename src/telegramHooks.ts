@@ -34,3 +34,7 @@ export const buildHookIndex = async (): Promise<void> => {
 export const hooksForChat = (chatId: string): HookTarget[] => {
     return hookIndex.get(chatId) || []
 }
+
+export const knownChats = (): string[] => {
+    return Array.from(hookIndex.keys())
+}
