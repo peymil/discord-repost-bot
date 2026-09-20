@@ -11,6 +11,54 @@ const sessionString = process.env.TELEGRAM_SESSION || ""
 
 const DISCORD_MAX_UPLOAD_BYTES = parseInt(process.env.DISCORD_MAX_UPLOAD_MB || "10", 10) * 1024 * 1024
 
+const MIME_EXTENSIONS: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/bmp": "bmp",
+    "image/svg+xml": "svg",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",
+    "video/x-matroska": "mkv",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/ogg": "ogg",
+    "audio/x-wav": "wav",
+    "audio/wav": "wav",
+    "audio/flac": "flac",
+    "application/pdf": "pdf",
+    "application/zip": "zip",
+    "application/x-rar-compressed": "rar",
+    "application/x-7z-compressed": "7z",
+    "application/json": "json",
+    "text/plain": "txt",
+    "text/csv": "csv"
+}
+
+const extensionForMime = (mime: string | undefined): string | undefined => {
+    if (!mime) return undefined
+    const normalized = mime.split(";")[0].trim().toLowerCase()
+    if (!normalized) return undefined
+    if (MIME_EXTENSIONS[normalized]) return MIME_EXTENSIONS[normalized]
+    if (normalized.startsWith("image/")) return normalized.slice(6)
+    if (normalized.startsWith("video/")) return normalized.slice(6)
+    if (normalized.startsWith("audio/")) return normalized.slice(6)
+    return normalized === "application/octet-stream" ? "bin" : undefined
+}
+
+const buildMediaName = (name: string | undefined, mime: string | undefined, messageId: number): string => {
+    const extension = extensionForMime(mime)
+    if (!name) {
+        return `telegram_${messageId}${extension ? `.${extension}` : ""}`
+    }
+    const hasExtension = /\.[a-z0-9]{1,8}$/i.test(name)
+    if (!hasExtension && extension) return `${name}.${extension}`
+    return name
+}
+
 export const telegramConfigured = apiId > 0 && !!apiHash && !!sessionString
 
 let telegramClient: TelegramClient | undefined
@@ -91,7 +139,8 @@ const handleTelegramMessage = async (event: NewMessageEvent) => {
             const downloaded = await getTelegramClient().downloadMedia(message)
             if (Buffer.isBuffer(downloaded) && downloaded.length > 0) {
                 mediaBuffer = downloaded
-                mediaName = message.file?.name || mediaName
+                const file = message.file
+                mediaName = buildMediaName(file?.name, file?.mimeType, message.id)
             }
         } catch (e) {
             console.error("Failed to download telegram media", e)
