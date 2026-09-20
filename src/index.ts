@@ -5,7 +5,11 @@ import phash from "sharp-phash"
 import {and, asc, eq, gt, or, isNull} from "drizzle-orm";
 import {attachments, link_blacklist, links, posts, guilds, whitelist as whitelistTable} from "./schema.js";
 import distance from "sharp-phash/distance.js";
-import {ApplicationCommandOptionType, PermissionsBitField} from "discord.js";
+import {ApplicationCommandOptionType, ChannelType, PermissionsBitField} from "discord.js";
+import {getGuildSettings, saveGuildSettings, TelegramHook} from "./settings.js";
+import {buildHookIndex} from "./telegramHooks.js";
+import {resolveTelegramChat, startTelegram, telegramConfigured} from "./telegram.js";
+import {allowedDiscordServers, isAllowedGuild} from "./allowedServers.js";
 
 
 const whitelist = [
@@ -203,13 +207,56 @@ const main = async () => {
                         description: "List all guild settings"
                     }
                 ]
+            },
+            {
+                name: "add_telegram_hook",
+                dmPermission: false,
+                description: "Mirror a Telegram channel/group into a Discord thread",
+                options: [
+                    {
+                        name: "thread",
+                        type: ApplicationCommandOptionType.Channel,
+                        channel_types: [
+                            ChannelType.PublicThread,
+                            ChannelType.PrivateThread,
+                            ChannelType.AnnouncementThread
+                        ],
+                        description: "Discord thread to post the Telegram messages into",
+                        required: true
+                    },
+                    {
+                        name: "telegram_group",
+                        type: ApplicationCommandOptionType.String,
+                        description: "Telegram @username or numeric id (e.g. -1001234567890)",
+                        required: true
+                    }
+                ]
+            },
+            {
+                name: "remove_all_telegram_hook",
+                dmPermission: false,
+                description: "Remove all Telegram hooks for this server"
             }
         ]
 
-        await discordClient.application!.commands.set(commands)
+        if (allowedDiscordServers.length > 0) {
+            await discordClient.application!.commands.set([])
+            for (const guildId of allowedDiscordServers) {
+                await discordClient.application!.commands.set(commands, guildId)
+            }
+            console.log(`Registered commands in ${allowedDiscordServers.length} allowed guild(s)`)
+        } else {
+            await discordClient.application!.commands.set(commands)
+        }
+
+        await startTelegram()
     })
     discordClient.on("interactionCreate", async interaction => {
         if (!interaction.isCommand()) return;
+        if (!isAllowedGuild(interaction.guildId)) {
+            await interaction.reply({ content: "This bot is not enabled for this server.", ephemeral: true })
+            return
+        }
         if (interaction.commandName === "register_blacklist") {
             if (!hasPermission(interaction)) {
                 await interaction.reply({ content: "Lolcüler bana komut veremez.", ephemeral: true })
@@ -330,11 +377,81 @@ const main = async () => {
                 const settingsList = Object.entries(settings).map(([key, value]) => `${key}: ${value}`).join("\n")
                 await interaction.reply({ content: `Guild settings:\n${settingsList}`, ephemeral: true })
             }
+        } else if (interaction.commandName === "add_telegram_hook") {
+            if (!hasPermission(interaction)) {
+                await interaction.reply({ content: "Lolcüler bana komut veremez.", ephemeral: true })
+                return
+            }
+
+            const guildId = interaction.guildId;
+            if (!guildId) {
+                await interaction.reply({ content: "This command can only be used in a guild", ephemeral: true })
+                return
+            }
+            if (!telegramConfigured) {
+                await interaction.reply({ content: "Telegram bridge is not configured on this instance (missing TELEGRAM_API_ID / TELEGRAM_API_HASH / TELEGRAM_SESSION).", ephemeral: true })
+                return
+            }
+
+            const thread = interaction.options.getChannel("thread", true)
+            const telegramGroup = interaction.options.getString("telegram_group", true)
+
+            await interaction.deferReply({ ephemeral: true })
+            try {
+                const resolved = await resolveTelegramChat(telegramGroup)
+                const settings = await getGuildSettings(guildId)
+                const hooks: TelegramHook[] = settings.telegramHooks || []
+
+                const hook: TelegramHook = {
+                    threadId: thread.id,
+                    threadName: (thread as any).name || thread.id,
+                    telegramChatId: resolved.chatId,
+                    telegramTitle: resolved.title,
+                    createdAt: new Date().toISOString()
+                }
+
+                const existingIndex = hooks.findIndex(h => h.telegramChatId === resolved.chatId)
+                if (existingIndex >= 0) {
+                    hooks[existingIndex] = hook
+                } else {
+                    hooks.push(hook)
+                }
+
+                settings.telegramHooks = hooks
+                await saveGuildSettings(guildId, settings)
+                await buildHookIndex()
+
+                await interaction.editReply({ content: `Telegram "${resolved.title}" (${resolved.chatId}) is now hooked to <#${thread.id}>.` })
+            } catch (e) {
+                console.error(e)
+                await interaction.editReply({ content: `Could not resolve Telegram chat "${telegramGroup}". Use an @username or a numeric id (e.g. -1001234567890).` })
+            }
+        } else if (interaction.commandName === "remove_all_telegram_hook") {
+            if (!hasPermission(interaction)) {
+                await interaction.reply({ content: "Lolcüler bana komut veremez.", ephemeral: true })
+                return
+            }
+
+            const guildId = interaction.guildId;
+            if (!guildId) {
+                await interaction.reply({ content: "This command can only be used in a guild", ephemeral: true })
+                return
+            }
+
+            const settings = await getGuildSettings(guildId)
+            const removed = settings.telegramHooks?.length || 0
+            delete settings.telegramHooks
+
+            await saveGuildSettings(guildId, settings)
+            await buildHookIndex()
+
+            await interaction.reply({ content: `Removed ${removed} Telegram hook(s) for this server.`, ephemeral: true })
         }
     })
     discordClient.on('messageCreate', async message => {
 
         if (message.author.bot) return;
+        if (!isAllowedGuild(message.guildId)) return;
         const post = await db.insert(posts).values({
             user_id: message.author.id,
             message: message.content,

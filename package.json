@@ -7,7 +7,8 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "sharp-phash": "^2.2.0",
-    "sqlite3": "^6.0.1"
+    "sqlite3": "^6.0.1",
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
     "@swc/cli": "^0.8.1",
@@ -17,10 +18,12 @@
     "ts-node": "^10.9.2",
     "typescript": "^7.0.2"
   },
-  "scripts": {
+"scripts": {
     "start": "node dist/src/index.js",
     "dev": "ts-node src/index.ts",
-    "build": "swc src --out-dir dist"
+    "build": "swc src --out-dir dist && swc scripts/telegram-login.ts -o dist/scripts/telegram-login.js && swc scripts/telegram-dialogs.ts -o dist/scripts/telegram-dialogs.js",
+    "telegram:login": "npm run build && node dist/scripts/telegram-login.js",
+    "telegram:dialogs": "npm run build && node dist/scripts/telegram-dialogs.js"
   },
   "engines": {
     "node": "24"
