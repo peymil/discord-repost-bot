@@ -7,6 +7,7 @@ export interface HookTarget {
     guildId: string;
     threadId: string;
     threadName: string;
+    lastMessageId?: number;
 }
 
 const hookIndex = new Map<string, HookTarget[]>()
@@ -23,10 +24,15 @@ export const buildHookIndex = async (): Promise<void> => {
             targets.push({
                 guildId: row.guild_id,
                 threadId: hook.threadId,
-                threadName: hook.threadName
+                threadName: hook.threadName,
+                lastMessageId: typeof hook.lastMessageId === "number" ? hook.lastMessageId : undefined
             })
             hookIndex.set(key, targets)
         }
+    }
+    for (const [chatId, targets] of hookIndex) {
+        const details = targets.map(t => `${t.guildId}/${t.threadId}@${t.lastMessageId ?? "new"}`).join(", ")
+        console.log(`Telegram hook ${chatId} -> ${details}`)
     }
     console.log(`Telegram hook index built: ${hookIndex.size} chat(s)`)
 }

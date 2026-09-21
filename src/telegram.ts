@@ -1,15 +1,17 @@
 import {TelegramClient, Api} from "telegram";
 import {StringSession} from "telegram/sessions/index.js";
-import {NewMessage, NewMessageEvent} from "telegram/events/index.js";
 import {AttachmentBuilder} from "discord.js";
 import {discordClient} from "./discord.js";
-import {buildHookIndex, hooksForChat, knownChats} from "./telegramHooks.js";
+import {buildHookIndex, hooksForChat, knownChats, HookTarget} from "./telegramHooks.js";
+import {getGuildSettings, saveGuildSettings} from "./settings.js";
 
 const apiId = parseInt(process.env.TELEGRAM_API_ID || "0", 10)
 const apiHash = process.env.TELEGRAM_API_HASH || ""
 const sessionString = process.env.TELEGRAM_SESSION || ""
 
 const DISCORD_MAX_UPLOAD_BYTES = parseInt(process.env.DISCORD_MAX_UPLOAD_MB || "10", 10) * 1024 * 1024
+const POLL_INTERVAL_MS = parseInt(process.env.TELEGRAM_POLL_INTERVAL_MS || "60000", 10)
+const BACKFILL_COUNT = parseInt(process.env.TELEGRAM_BACKFILL || "0", 10)
 
 const MIME_EXTENSIONS: Record<string, string> = {
     "image/jpeg": "jpg",
@@ -57,6 +59,39 @@ const buildMediaName = (name: string | undefined, mime: string | undefined, mess
     const hasExtension = /\.[a-z0-9]{1,8}$/i.test(name)
     if (!hasExtension && extension) return `${name}.${extension}`
     return name
+}
+
+const DISCORD_MAX_CONTENT_LENGTH = 2000
+
+const splitContent = (content: string, limit = DISCORD_MAX_CONTENT_LENGTH): string[] => {
+    if (!content) return []
+    if (content.length <= limit) return [content]
+
+    const chunks: string[] = []
+    let remaining = content
+    while (remaining.length > limit) {
+        let splitAt = remaining.lastIndexOf("\n", limit)
+        if (splitAt <= 0) splitAt = remaining.lastIndexOf(" ", limit)
+        if (splitAt <= 0) splitAt = limit
+        chunks.push(remaining.slice(0, splitAt))
+        remaining = remaining.slice(splitAt).replace(/^\n/, "")
+    }
+    if (remaining.length) chunks.push(remaining)
+    return chunks
+}
+
+const sendToChannel = async (channel: any, content: string, files: AttachmentBuilder[]): Promise<void> => {
+    const chunks = splitContent(content)
+    if (chunks.length === 0) {
+        await channel.send(files.length ? {files} : {content: ""})
+        return
+    }
+    for (let i = 0; i < chunks.length; i++) {
+        await channel.send({
+            content: chunks[i],
+            files: i === 0 && files.length ? files : undefined
+        })
+    }
 }
 
 export const telegramConfigured = apiId > 0 && !!apiHash && !!sessionString
@@ -113,21 +148,7 @@ const senderName = async (message: Api.Message): Promise<string> => {
     return "Telegram"
 }
 
-const handleTelegramMessage = async (event: NewMessageEvent) => {
-    const message = event.message
-
-    const chatId = message.chatId?.toString()
-    if (!chatId) return
-
-    const hooks = hooksForChat(chatId)
-    if (hooks.length === 0) {
-        if (process.env.TELEGRAM_DEBUG) {
-            console.log(`[telegram] message in chat ${chatId} has no hook. Known chats: ${knownChats().join(", ") || "(none)"}`)
-        }
-        return
-    }
-    console.log(`[telegram] forwarding message from ${chatId} to ${hooks.length} thread(s)`)
-
+const forwardTelegramMessage = async (chatId: string, message: Api.Message, hooks: HookTarget[]) => {
     const text = message.message || ""
     const hasMedia = !!(message.photo || message.document || message.video || message.audio || message.voice)
     if (!text && !hasMedia) return
@@ -143,30 +164,116 @@ const handleTelegramMessage = async (event: NewMessageEvent) => {
                 mediaName = buildMediaName(file?.name, file?.mimeType, message.id)
             }
         } catch (e) {
-            console.error("Failed to download telegram media", e)
+            console.error(`[telegram] failed to download media for ${chatId}/${message.id}`, e)
         }
     }
 
     const name = await senderName(message)
-    const content = mediaBuffer || text ? `**${name}:** ${text}`.trim() : ""
+    const content = `**${name}:** ${text}`.trim()
 
     for (const hook of hooks) {
         try {
             const channel: any = await discordClient.channels.fetch(hook.threadId)
             if (!channel || typeof channel.send !== "function") continue
 
-            const files = []
+            const files: AttachmentBuilder[] = []
             if (mediaBuffer) {
                 if (mediaBuffer.length <= DISCORD_MAX_UPLOAD_BYTES) {
                     files.push(new AttachmentBuilder(mediaBuffer, {name: mediaName}))
                 } else {
-                    console.warn(`Telegram media from ${chatId} exceeds Discord upload limit; sending text only`)
+                    console.warn(`[telegram] media ${chatId}/${message.id} exceeds Discord upload limit; sending text only`)
                 }
             }
-            await channel.send({content: content || undefined, files: files.length ? files : undefined})
+
+            try {
+                await sendToChannel(channel, content, files)
+            } catch (e) {
+                if (channel.isThread?.() && channel.archived) {
+                    await channel.setArchived(false)
+                    await sendToChannel(channel, content, files)
+                } else {
+                    throw e
+                }
+            }
         } catch (e) {
-            console.error(`Failed to forward telegram message to thread ${hook.threadId}`, e)
+            console.error(`Failed to forward telegram message ${chatId}/${message.id} to thread ${hook.threadId}`, e)
         }
+    }
+}
+
+const persistLastMessageId = async (chatId: string, hooks: HookTarget[], messageId: number) => {
+    const byGuild = new Map<string, HookTarget[]>()
+    for (const hook of hooks) {
+        const list = byGuild.get(hook.guildId) || []
+        list.push(hook)
+        byGuild.set(hook.guildId, list)
+    }
+
+    for (const [guildId, guildHooks] of byGuild) {
+        try {
+            const settings = await getGuildSettings(guildId)
+            const entries = settings.telegramHooks || []
+            for (const guildHook of guildHooks) {
+                const entry = entries.find(e => e.telegramChatId === chatId && e.threadId === guildHook.threadId)
+                if (entry) entry.lastMessageId = messageId
+                guildHook.lastMessageId = messageId
+            }
+            await saveGuildSettings(guildId, settings)
+        } catch (e) {
+            console.error(`[telegram] failed to persist last message id for ${chatId}`, e)
+        }
+    }
+}
+
+let polling = false
+
+const pollChat = async (chatId: string) => {
+    const hooks = hooksForChat(chatId)
+    if (hooks.length === 0) return
+
+    const client = getTelegramClient()
+    const entity = await client.getEntity(Number(chatId))
+    const messages = await client.getMessages(entity, {limit: Math.max(20, BACKFILL_COUNT)})
+    const ascending = messages.slice().sort((a, b) => a.id - b.id)
+    if (ascending.length === 0) return
+
+    const latest = ascending[ascending.length - 1].id
+    const known = hooks.map(h => h.lastMessageId).filter((v): v is number => typeof v === "number")
+    let lastSeen: number
+    if (known.length > 0) {
+        lastSeen = Math.min(...known)
+    } else if (BACKFILL_COUNT > 0) {
+        const startIndex = Math.max(0, ascending.length - BACKFILL_COUNT)
+        lastSeen = startIndex > 0 ? ascending[startIndex - 1].id : ascending[0].id - 1
+    } else {
+        lastSeen = latest
+    }
+
+    const fresh = ascending.filter(m => m.id > lastSeen)
+    for (const message of fresh) {
+        console.log(`[telegram] forwarding message ${chatId}/${message.id} to ${hooks.length} thread(s)`)
+        await forwardTelegramMessage(chatId, message, hooks)
+    }
+
+    const nextId = fresh.length > 0 ? fresh[fresh.length - 1].id : lastSeen
+    if (nextId !== lastSeen || known.length === 0) {
+        await persistLastMessageId(chatId, hooks, nextId)
+    }
+}
+
+export const pollTelegramHooks = async () => {
+    if (!telegramConfigured || polling) return
+    polling = true
+    try {
+        for (const chatId of knownChats()) {
+            try {
+                await pollChat(chatId)
+            } catch (e) {
+                console.error(`[telegram] failed to poll ${chatId}`, e)
+            }
+        }
+    } finally {
+        polling = false
     }
 }
 
@@ -184,6 +291,7 @@ export const startTelegram = async () => {
         return
     }
 
-    client.addEventHandler(handleTelegramMessage, new NewMessage({}))
-    console.log("Telegram bridge connected")
+    await pollTelegramHooks()
+    setInterval(() => { void pollTelegramHooks() }, POLL_INTERVAL_MS)
+    console.log(`Telegram bridge connected. Polling every ${Math.round(POLL_INTERVAL_MS / 1000)}s`)
 }

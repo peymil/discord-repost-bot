@@ -7,6 +7,7 @@ export interface TelegramHook {
     threadName: string;
     telegramChatId: string;
     telegramTitle: string;
+    lastMessageId?: number;
     createdAt: string;
 }
 

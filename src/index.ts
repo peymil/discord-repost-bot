@@ -8,7 +8,7 @@ import distance from "sharp-phash/distance.js";
 import {ApplicationCommandOptionType, ChannelType, PermissionsBitField} from "discord.js";
 import {getGuildSettings, saveGuildSettings, TelegramHook} from "./settings.js";
 import {buildHookIndex} from "./telegramHooks.js";
-import {resolveTelegramChat, startTelegram, telegramConfigured} from "./telegram.js";
+import {resolveTelegramChat, startTelegram, telegramConfigured, pollTelegramHooks} from "./telegram.js";
 import {allowedDiscordServers, isAllowedGuild} from "./allowedServers.js";
 
 
@@ -420,6 +420,7 @@ const main = async () => {
                 settings.telegramHooks = hooks
                 await saveGuildSettings(guildId, settings)
                 await buildHookIndex()
+                void pollTelegramHooks()
 
                 await interaction.editReply({ content: `Telegram "${resolved.title}" (${resolved.chatId}) is now hooked to <#${thread.id}>.` })
             } catch (e) {
