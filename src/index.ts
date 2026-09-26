@@ -480,6 +480,9 @@ const main = async () => {
                             const distanceValue = distance(hash, similarAttachment.attachments.pHash.toString('binary'))
                             if (distanceValue < 5) {
                                 isSimilarImageFound = true;
+                                // Don't warn the user about their own post
+                                if (similarAttachment.posts.user_id === message.author.id) break;
+
                                 const similarPostUrl = await db.select().from(posts).where(
                                     eq(posts.id, similarAttachment.attachments.postId)
                                 ).execute().then((res) => res[0].messageUrl)
@@ -540,6 +543,9 @@ const main = async () => {
                         const repostUrls = dbMessageLinks.map(l => l.posts.messageUrl)
                         const existingIds = await getExistingMessageIds(message.channel, repostUrls)
                         for (const linkRow of dbMessageLinks) {
+                            // Don't warn the user about their own post
+                            if (linkRow.posts.user_id === message.author.id) continue;
+
                             const msgId = linkRow.posts.messageUrl.split("/").pop()!
                             if (existingIds.has(msgId)) {
                                 await message.reply("Repost yapma eşşek " + linkRow.posts.messageUrl)
